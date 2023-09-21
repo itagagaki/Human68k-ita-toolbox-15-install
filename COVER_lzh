@@ -1,0 +1,19 @@
+
+概要        :  コマンドをインストールする install v0.2
+必須環境    :  Human68k (version 2.0以降), fish (v0.8.2以降)
+データ名    :  INSTAL02.LZH
+符号化方式  :  LHA
+著者        :  板垣　史彦
+
+特記事項    :
+
+  * fishスクリプトとして書かれた install コマンドです。実行する
+    には以下のコマンドが必要です。
+
+    ITA TOOLBOX #1   fish   v0.8.2～
+    ITA TOOLBOX #7   mv     v1.5～
+    ITA TOOLBOX #8   cp     v1.4～
+    ITA TOOLBOX #10  chmod  v1.4～
+    ITA TOOLBOX #14  strip  v1.2～
+    Ｆ＆Ｉ氏の lzx.x v0.43.4(h)+Junk
+

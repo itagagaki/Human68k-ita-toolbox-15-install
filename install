@@ -1,127 +1,102 @@
 #!fish -f
-## install 0.1 ##  Copyright(C)1993 by Itagaki Fumihiko
+
+## install 0.2 ##  Copyright(C)1993 by Itagaki Fumihiko
 
 ######################################################################
-#       もし必要なら，以下のコマンドに起動パスを加えてください．     #
+#  もし必要なら，以下のコマンドに起動パスを加えてください．
 ######################################################################
-set        rm=( rm )		# ITA rm v1.4～
-set        mv=( mv )		# ITA mv v1.5～
-set        cp=( cp )		# ITA cp v1.4～
-set        ln=( ln )		# ITA ln v1.2～
-set     chmod=( chmod )		# ITA chmod v1.3～
-set     strip=( strip )		# ITA strip
-set       lzx=( lzx )		# Ｆ＆Ｉ LZX v0.43.4   ※ -r は指定できません
+set     mv=( mv )	# ITA mv v1.5～
+set     cp=( cp )	# ITA cp v1.4～
+set  chmod=( chmod )	# ITA chmod v1.4～
+set  strip=( strip )	# ITA strip v1.2～
+set    lzx=( lzx )	# Ｆ＆Ｉ LZX v0.43.4(h)+Junk   ※ -r は指定できません
 ######################################################################
 
-set mi=$0:t
-@ retval=0
+set mi="$0:t"
+
+if( $FISH_VERSION[1] == 0 && $FISH_VERSION[2] < 8 ) \
+  echo -2 "${mi}: version 0.8.2 以降の fish をインストールしてください" ; exit 1
 
 function do_install() {
-  if (-f "$1") then
-    if (-l "$1" && ! $?install_copy) then
-      echo -2 "${mi}: ${1}: シンボリック・リンクを移動することはできません"
-      goto install_fail
+  if( ! -e "$1" ) echo -2 "${mi}: ${1}: このようなファイルはありません" ; @ status=2; return
+  if( ! -f "$1" ) echo -2 "${mi}: ${1}: 通常のファイルではありません" ; @ retval=2 ; return
+  if( ! $?install_copy && -l "$1" ) echo -2 "${mi}: ${1}: シンボリック・リンクを移動することはできません" ; @ retval=2 ; return
+  if( ! { $cmd:q -f -- "$1" "$2" } ) @ retval=$? ; return
+  if( $?dostrip ) then
+    $strip:q -- "$2" >& NUL
+    if( $?dolzx && ( $? == 0 || "$2" =~ *.[rR] ) ) then
+      cd $temp
+      @ ab=( -e "$2:t" )
+      if( $ab ) $mv:q -f -- "$2:t" "#$$#"
+      $lzx:q "$2"
+      if( -e "$2:t" ) $mv:q -f -- "$2:t" "$2"
+      if( $ab ) $mv:q -f -- "#$$#" "$2:t"
+      cd -
     endif
-    $rm:q -f -- "$2"
-    if ($status) @ retval=$status ; return
-    $cmd:q -- $*:q
-    if ($status) @ retval=$status ; return
-    if ($?dostrip || $?dolzx) then
-      $strip:q -- "$2" >& NUL
-      if ($status == 0 && $?dolzx) then
-        pushd -s $temp
-        @ ab=(-e "$2:t")
-        if ($ab) $mv:q -f -- "$2:t" "#$$#"
-        $lzx:q "$2"
-        if (-e "$2:t") $mv:q -f -- "$2:t" "$2"
-        if ($ab) $mv:q -f -- "#$$#" "$2:t"
-        popd -s
-      endif
-    endif
-    if ("$modexp1$modexp2" != "") then
-      $chmod:q "$modexp1$modexp2" "$2"
-      if ($status) @ retval=$status ; return
-    endif
-  else
-    if (-e "$1") then
-      echo -2 "${mi}: ${1}: 通常のファイルではありません"
-    else
-      echo -2 "${mi}: ${1}: このようなファイルはありません"
-    endif
-install_fail:
-    @ retval=2
   endif
+  if( "$modexp1$modexp2" != "" && ! { $chmod:q "$modexp1$modexp2" "$2" } ) @ retval=$?
 }
 
-set cmd=($mv:q) modexp1="=arx," modexp2
+set cmd=( $mv:q ) modexp1="=arx," modexp2
 
-@ i=1
-while ($#argv && "$1" =~ \-?*)
-  set f="$1"
-  shift
-  if ("$f" == \--) then
-    break
-  else if ("$f" == \-m) then
-    if ($#argv == 0) goto too_few_arg
-    set modexp2="$1"
-    if ($modexp2 =~ [0-7]*) set modexp1
-    shift
-  else if ("$f" !~ \-*[^cpsvxz]*) then
-    if ("$f" =~ *c*) set install_copy cmd=($cp:q)
-    if ("$f" =~ *p*) set predict modexp1
-    if ("$f" =~ *s*) set dostrip
-    if ("$f" =~ *v*) set doverbose
-    if ("$f" =~ *x*) set suppress_x
-    if ("$f" =~ *z*) set dolzx
-  else
-    echo -2 "${mi}: 不正なオプション -- $f"
-usage:
-    echo -2 "使用法:  $mi [-cpsvz] [-m <属性変更式>] [--] <ファイル> <インストール先のパス名>"
-    echo -2 "         $mi [-cpsvzx] [-m <属性変更式>] [--] <ファイル> ... <インストール先ディレクトリ>"
-    echo -2
-    echo -2 "         属性変更式: {[ugoa]{{+-=}[ashrwx]}...}[,...]"
-    exit 1
-  endif
+getopt cpsvxzm:
+while( $#options )
+  switch( $options[1] )
+  case c:
+    set install_copy cmd=( $cp:q ) ; breaksw
+  case p:
+    set predict modexp1 ; breaksw
+  case z:
+    set dolzx
+  case s:
+    set dostrip ; breaksw
+  case v:
+    set doverbose ; breaksw
+  case x:
+    set suppress_x ; breaksw
+  case m:
+    shift options
+    set modexp2="$options[1]"
+    if( "$modexp2" =~ [0-7]* ) set modexp1
+    breaksw
+  default:
+    goto usage
+  endsw
+  shift options
 end
 
-if ($#argv < 2) then
-too_few_arg:
+if( $# < 2 ) then
   echo -2 "${mi}: 引数が足りません"
-  goto usage
+usage:
+  echo -2 "使用法:  $mi [-cpsvz] [-m <属性変更式>] [--] <ファイル> <インストール先のパス名>"
+  echo -2 "         $mi [-cpsvzx] [-m <属性変更式>] [--] <ファイル> ... <インストール先ディレクトリ>"
+  echo -2
+  echo -2 "         属性変更式: {[ugoa]{{+-=}[ashrwx]}...}[,...] または 8進数値表現"
+  exit 1
 endif
 
-if ($?dolzx) then
-  if ($?temp == 0) then
-    echo -2 "${mi}: 環境変数 temp が設定されていません"
-    exit 2
-  endif
-  (cd $temp >& NUL)
-  if ($status) then
-    echo -2 "${mi}: 環境変数 temp が指すディレクトリ $temp が存在しません"
-    exit 2
-  endif
+if( $?dolzx ) then
+  if( $?temp == 0 ) echo -2 "${mi}: 環境変数 temp が設定されていません" ; exit 1
+  if( ! -d $temp ) echo -2 "${mi}: 環境変数 temp が指すディレクトリ $temp が存在しません" ; exit 1
 endif
 
-if ($?predict && $?install_copy) set cmd=($cp:q -p)
-if ($?doverbose) set cmd=($cmd:q -v)
+if( $?predict && $?install_copy ) set cmd=( $cp:q -p )
+if( $?doverbose ) set cmd=( $cmd:q -v )
 
-set target="$argv[$#argv]"
-(cd $target >& NUL)
-if ($status == 0) then
-  if ("$target" !~ *[:/\\]) set target="$target/"
-  while ($#argv >= 2)
-    if ($?suppress_x && "$1" =~ *.[xX]) then
-      do_install "$1" "$target$1:t:r"
+@ retval=0
+
+set target="$argv[$#]"
+if( -d "$target" ) then
+  while( $# >= 2 )
+    if( $?suppress_x && "$1" =~ *.[xX] ) then
+      do_install "$1" "$target:/$1:t:r"
     else
-      do_install "$1" "$target$1:t"
+      do_install "$1" "$target:/$1:t"
     endif
     shift
   end
 else
-  if ($#argv > 2) then
-    echo -2 "${mi}: ${target}: ディレクトリではありません"
-    exit 2
-  endif
+  if( $# > 2 ) echo -2 "${mi}: ${target}: ディレクトリではありません" ; exit 2
   do_install $*:q
 endif
 
